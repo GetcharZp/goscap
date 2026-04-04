@@ -4,3 +4,5 @@ github.com/godbus/dbus/v5 v5.1.0 h1:4KLkAxT3aOY8Li4FRJe/KvhoNFFxo0m6fNuFUO8QJUk=
 github.com/godbus/dbus/v5 v5.1.0/go.mod h1:xhWf0FNVPg57R7Z0UbKHbJfkEywrmjJnf7w5xrFpKfA=
 github.com/up-zero/gotool v0.0.0-20260325024157-91f57613751e h1:J2ril1+iIxyOA6YnD1qylxZoR4MxLJvAS5MKCiESZGo=
 github.com/up-zero/gotool v0.0.0-20260325024157-91f57613751e/go.mod h1:+jwIpLHojqHUvbEmNXv/F5acdHSEkJIbNXRqT1IE78I=
+github.com/up-zero/gotool v0.0.0-20260402041903-fc63843f0377 h1:QvTovZDFjs5WBR23yooUO7mZsuBiECnIw4lzR6FDf1A=
+github.com/up-zero/gotool v0.0.0-20260402041903-fc63843f0377/go.mod h1:+jwIpLHojqHUvbEmNXv/F5acdHSEkJIbNXRqT1IE78I=

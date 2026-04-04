@@ -931,7 +931,7 @@ func (c *dxgiCapturer) readFrame(resource *IDXGIResource) (*image.RGBA, error) {
 			srcPtr += uintptr(srcStride)
 		}
 	default:
-		return nil, errors.New("unsupported DXGI format: 0x" + convertutil.FormatHex(texDesc.Format))
+		return nil, errors.New("unsupported DXGI format: 0x" + convertutil.IntToHex(texDesc.Format))
 	}
 
 	return img, nil
@@ -1008,7 +1008,7 @@ func (c *dxgiCapturer) Close() error {
 }
 
 func windowsError(op string, hr HRESULT) error {
-	return errors.New(op + " failed: HRESULT=0x" + convertutil.FormatHex(uint32(hr)))
+	return errors.New(op + " failed: HRESULT=0x" + convertutil.IntToHex(uint32(hr)))
 }
 
 func halfToFloat(h uint16) float32 {
