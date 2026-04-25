@@ -1,6 +1,6 @@
 module github.com/getcharzp/goscap
 
-go 1.24.4
+go 1.21
 
 require (
 	github.com/BurntSushi/xgb v0.0.0-20210121224620-deaf085860bc
