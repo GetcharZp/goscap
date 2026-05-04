@@ -4,6 +4,7 @@ package goscap
 
 import (
 	"errors"
+	"fmt"
 	"github.com/up-zero/gotool/convertutil"
 	"image"
 	"math"
@@ -62,6 +63,7 @@ const (
 	dxgiFormatB8G8R8A8Unorm     = 87
 	dxgiFormatB8G8R8A8UnormSRGB = 91
 
+	dxgiErrorNotFound    = 0x887A0002
 	dxgiErrorWaitTimeout = 0x887A0027
 	dxgiErrorAccessLost  = 0x887A0026
 )
@@ -656,25 +658,68 @@ func (c *dxgiCapturer) initFactory(adapterIndex, outputIndex int) error {
 	}
 	c.factory = factory
 
+	var failures []error
+	if err := c.tryOutput(adapterIndex, outputIndex); err == nil {
+		return nil
+	} else {
+		failures = append(failures, fmt.Errorf("requested adapter %d output %d: %w", adapterIndex, outputIndex, err))
+	}
+
+	for ai := 0; ; ai++ {
+		var adapter *IDXGIAdapter1
+		hr = factory.EnumAdapters1(uint32(ai), &adapter)
+		if failed(hr) {
+			if hr == dxgiErrorNotFound {
+				break
+			}
+			failures = append(failures, windowsError(fmt.Sprintf("EnumAdapters1(%d)", ai), hr))
+			break
+		}
+
+		for oi := 0; ; oi++ {
+			var output *IDXGIOutput
+			hr = adapter.EnumOutputs(uint32(oi), &output)
+			if failed(hr) {
+				if hr != dxgiErrorNotFound {
+					failures = append(failures, windowsError(fmt.Sprintf("EnumOutputs(%d,%d)", ai, oi), hr))
+				}
+				break
+			}
+			output.Release()
+
+			if err := c.tryOutput(ai, oi); err == nil {
+				adapter.Release()
+				return nil
+			} else {
+				failures = append(failures, fmt.Errorf("adapter %d output %d: %w", ai, oi, err))
+			}
+		}
+
+		adapter.Release()
+	}
+
+	if len(failures) == 0 {
+		return errors.New("no DXGI desktop output found")
+	}
+	return fmt.Errorf("no DXGI output supports desktop duplication: %w", errors.Join(failures...))
+}
+
+func (c *dxgiCapturer) tryOutput(adapterIndex, outputIndex int) error {
+	c.releaseDXGIObjects(false)
+
 	var adapter *IDXGIAdapter1
-	hr = factory.EnumAdapters1(uint32(adapterIndex), &adapter)
+	hr := c.factory.EnumAdapters1(uint32(adapterIndex), &adapter)
 	if failed(hr) {
-		return windowsError("EnumAdapters1", hr)
+		return windowsError(fmt.Sprintf("EnumAdapters1(%d)", adapterIndex), hr)
 	}
 	c.adapter = adapter
+
 	var output *IDXGIOutput
 	hr = adapter.EnumOutputs(uint32(outputIndex), &output)
 	if failed(hr) {
-		return windowsError("EnumOutputs", hr)
+		return windowsError(fmt.Sprintf("EnumOutputs(%d,%d)", adapterIndex, outputIndex), hr)
 	}
 	c.output = output
-
-	var output1 *IDXGIOutput1
-	hr = output.QueryInterface(&iidIDXGIOutput1, unsafe.Pointer(&output1))
-	if failed(hr) {
-		return windowsError("QueryInterface IDXGIOutput1", hr)
-	}
-	c.output1 = output1
 
 	var desc DxgiOutputDesc
 	hr = output.GetDesc(&desc)
@@ -688,6 +733,13 @@ func (c *dxgiCapturer) initFactory(adapterIndex, outputIndex int) error {
 	}
 	c.width = width
 	c.height = height
+
+	var output1 *IDXGIOutput1
+	hr = output.QueryInterface(&iidIDXGIOutput1, unsafe.Pointer(&output1))
+	if failed(hr) {
+		return windowsError("QueryInterface IDXGIOutput1", hr)
+	}
+	c.output1 = output1
 
 	return c.initDeviceAndDuplication()
 }
@@ -972,6 +1024,11 @@ func (c *dxgiCapturer) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	c.releaseDXGIObjects(true)
+	return nil
+}
+
+func (c *dxgiCapturer) releaseDXGIObjects(includeFactory bool) {
 	if c.staging != nil {
 		c.staging.Release()
 		c.staging = nil
@@ -1000,11 +1057,10 @@ func (c *dxgiCapturer) Close() error {
 		c.device.Release()
 		c.device = nil
 	}
-	if c.factory != nil {
+	if includeFactory && c.factory != nil {
 		c.factory.Release()
 		c.factory = nil
 	}
-	return nil
 }
 
 func windowsError(op string, hr HRESULT) error {
