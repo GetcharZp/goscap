@@ -415,8 +415,14 @@ func (c *pipewireCapturer) CaptureWithInfo() (*image.RGBA, bool, error) {
 	}
 	defer C.pw_capture_free_frame(&frame)
 
-	buf := C.GoBytes(unsafe.Pointer(frame.data), C.int(frame.size))
-	img, err := convertPipewireFrame(&frame, buf)
+	var buf []byte
+	if frame.size > 0 {
+		if frame.data == nil {
+			return nil, false, errors.New("invalid pipewire frame buffer")
+		}
+		buf = unsafe.Slice((*byte)(unsafe.Pointer(frame.data)), int(frame.size))
+	}
+	img, err := convertPipewireFrame(&frame, buf, c.ensureImage(int(frame.width), int(frame.height)))
 	if err != nil {
 		return nil, false, err
 	}
@@ -442,14 +448,23 @@ func (c *pipewireCapturer) Close() error {
 	return nil
 }
 
-func convertPipewireFrame(frame *C.pw_frame, buf []byte) (*image.RGBA, error) {
+func (c *pipewireCapturer) ensureImage(width, height int) *image.RGBA {
+	if c.lastImage != nil && c.lastImage.Rect.Dx() == width && c.lastImage.Rect.Dy() == height {
+		return c.lastImage
+	}
+	return image.NewRGBA(image.Rect(0, 0, width, height))
+}
+
+func convertPipewireFrame(frame *C.pw_frame, buf []byte, img *image.RGBA) (*image.RGBA, error) {
 	width := int(frame.width)
 	height := int(frame.height)
 	stride := int(frame.stride)
 	if width <= 0 || height <= 0 || stride <= 0 {
 		return nil, errors.New("invalid pipewire frame")
 	}
-	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	if stride*height > len(buf) {
+		return nil, errors.New("invalid pipewire frame buffer")
+	}
 	for y := 0; y < height; y++ {
 		srcOff := y * stride
 		dstOff := y * img.Stride

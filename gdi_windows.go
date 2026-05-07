@@ -16,6 +16,7 @@ type gdiCapturer struct {
 	mu      sync.Mutex
 	rect    RECT
 	timeout time.Duration
+	img     *image.RGBA
 }
 
 var (
@@ -185,7 +186,7 @@ func (c *gdiCapturer) CaptureWithInfo() (*image.RGBA, bool, error) {
 		return nil, false, syscallError("BitBlt", err)
 	}
 
-	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	img := c.ensureImage(width, height)
 	src := unsafe.Slice((*byte)(unsafe.Pointer(bits)), width*height*4)
 	copy(img.Pix, src)
 	for i := 0; i < len(img.Pix); i += 4 {
@@ -193,6 +194,14 @@ func (c *gdiCapturer) CaptureWithInfo() (*image.RGBA, bool, error) {
 		img.Pix[i+3] = 0xff
 	}
 	return img, false, nil
+}
+
+func (c *gdiCapturer) ensureImage(width, height int) *image.RGBA {
+	if c.img != nil && c.img.Rect.Dx() == width && c.img.Rect.Dy() == height {
+		return c.img
+	}
+	c.img = image.NewRGBA(image.Rect(0, 0, width, height))
+	return c.img
 }
 
 func (c *gdiCapturer) Close() error {

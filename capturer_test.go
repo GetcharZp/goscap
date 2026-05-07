@@ -16,6 +16,7 @@ func TestNewCapturer(t *testing.T) {
 	defer c.Close()
 	var img image.Image
 	var repeated bool
+	var avg time.Duration
 
 	for i := 0; i < 100; i++ {
 		start := time.Now()
@@ -23,9 +24,11 @@ func TestNewCapturer(t *testing.T) {
 		if err != nil {
 			t.Fatalf("capture error %v", err)
 		}
+		avg += time.Since(start)
 		fmt.Printf("重复：%v \t 耗时：%v\n", repeated, time.Since(start))
 		time.Sleep(time.Millisecond * 20)
 	}
 
+	fmt.Printf("平均耗时：%v\n", avg/100)
 	imageutil.Save("test.png", img, 100)
 }

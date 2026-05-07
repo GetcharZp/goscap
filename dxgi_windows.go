@@ -910,7 +910,7 @@ func (c *dxgiCapturer) readFrame(resource *IDXGIResource) (*image.RGBA, error) {
 
 	width := int(texDesc.Width)
 	height := int(texDesc.Height)
-	img := image.NewRGBA(image.Rect(0, 0, width, height))
+	img := c.ensureImage(width, height)
 	dstStride := img.Stride
 	srcStride := int(mapped.RowPitch)
 	srcPtr := mapped.Data
@@ -987,6 +987,13 @@ func (c *dxgiCapturer) readFrame(resource *IDXGIResource) (*image.RGBA, error) {
 	}
 
 	return img, nil
+}
+
+func (c *dxgiCapturer) ensureImage(width, height int) *image.RGBA {
+	if c.lastImage != nil && c.lastImage.Rect.Dx() == width && c.lastImage.Rect.Dy() == height {
+		return c.lastImage
+	}
+	return image.NewRGBA(image.Rect(0, 0, width, height))
 }
 
 func (c *dxgiCapturer) ensureStaging(desc *D3d11Texture2dDesc) error {

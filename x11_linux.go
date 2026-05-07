@@ -23,6 +23,7 @@ type x11Capturer struct {
 	bpp       uint8
 	padBits   uint8
 	byteOrder byte
+	img       *image.RGBA
 }
 
 func newX11Capturer(opts *Options) (Capturer, error) {
@@ -103,14 +104,22 @@ func (c *x11Capturer) CaptureWithInfo() (*image.RGBA, bool, error) {
 	if err != nil {
 		return nil, false, err
 	}
-	img, err := x11ToRGBA(reply, int(c.width), int(c.height), c.bpp, c.padBits, c.byteOrder)
+	img, err := x11ToRGBA(reply, c.ensureImage(int(c.width), int(c.height)), int(c.width), int(c.height), c.bpp, c.padBits, c.byteOrder)
 	if err != nil {
 		return nil, false, err
 	}
 	return img, false, nil
 }
 
-func x11ToRGBA(reply *xproto.GetImageReply, width, height int, bpp, padBits uint8, byteOrder byte) (*image.RGBA, error) {
+func (c *x11Capturer) ensureImage(width, height int) *image.RGBA {
+	if c.img != nil && c.img.Rect.Dx() == width && c.img.Rect.Dy() == height {
+		return c.img
+	}
+	c.img = image.NewRGBA(image.Rect(0, 0, width, height))
+	return c.img
+}
+
+func x11ToRGBA(reply *xproto.GetImageReply, img *image.RGBA, width, height int, bpp, padBits uint8, byteOrder byte) (*image.RGBA, error) {
 	if reply == nil {
 		return nil, errors.New("x11: empty reply")
 	}
@@ -132,7 +141,6 @@ func x11ToRGBA(reply *xproto.GetImageReply, width, height int, bpp, padBits uint
 		}
 	}
 
-	img := image.NewRGBA(image.Rect(0, 0, width, height))
 	for y := 0; y < height; y++ {
 		srcOff := y * stride
 		dstOff := y * img.Stride
